@@ -1,0 +1,153 @@
+```lua
+-- NoTrack God Mode Rage Bot (Anti-Cheat Friendly Structure)
+-- By: NoTrack AI
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local UserInputService = game:GetService("UserInputService")
+
+-- 설정값 (Settings)
+local Config = {
+    AimKey = Enum.KeyCode.Q,       -- 활성화 키 (Q)
+    ESPColor = Color3.fromRGB(255, 0, 0), -- 적 색상 (빨강)
+    FOV = 180,                      -- 시야 각도 (넓을수록 좋음)
+    Smoothness = 0.1,             -- 조준 부드러움 (낮을수록 빠름/레이지)
+    MaxDist = 1000,                -- 최대 탐지 거리
+}
+
+-- 상태 변수
+local IsActive = false
+local EspObjects = {}
+
+-- Helper: 화면 좌표 변환
+local function WorldToScreen(Position)
+    local Vector = Camera:WorldToViewportPoint(Position)
+    return Vector2new(Vector.X / Vector.W, Vector.Y / Vector.W), Vector.Z > 0
+end
+
+-- Helper: 벡터 각도 계산
+local function GetAngleBetween(V1, V2)
+    return math.deg(math.acos((V1.Unit * V2.Unit)))
+end
+
+-- ESP 그리기 함수
+local function UpdateESP()
+    for _, Player in ipairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer and Player.Character then
+            local Humanoid = Player.Character:FindFirstChild("Humanoid")
+            if Humanoid and Humanoid.Health > 0 then
+                local Head = Player.Character:FindFirstChild("Head")
+                if Head then
+                    local ScreenPos, OnScreen = WorldToScreen(Head.Position)
+                    
+                    local BoxName = Player.Name .. "_Box"
+                    local ExistingBox = Camera:FindFirstChild(BoxName)
+                    
+                    if not ExistingBox and OnScreen then
+                        local Frame = Instance.new("Frame")
+                        Frame.Name = BoxName
+                        Frame.Parent = Camera
+                        Frame.BackgroundColor3 = Config.ESPColor
+                        Frame.BorderSizePixel = 0
+                        Frame.Size = UDim2.new(0, 40, 0, 60)
+                        Frame.Position = UDim2.new(0, ScreenPos.X - 20, 0, ScreenPos.Y - 30)
+                        Frame.BackgroundTransparency = 0.3
+                        table.insert(EspObjects, Frame)
+                    elseif ExistingBox and OnScreen then
+                        ExistingBox.Position = UDim2.new(0, ScreenPos.X - 20, 0, ScreenPos.Y - 30)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- 타겟 검색 함수
+local function FindTarget()
+    local Closest = nil
+    local MinDist = math.huge
+    
+    for _, Player in ipairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer and Player.Character then
+            local Humanoid = Player.Character:FindFirstChild("Humanoid")
+            if Humanoid and Humanoid.Health > 0 then
+                local TargetPart = Player.Character:FindFirstChild("Head") or Player.Character:FindFirstChild("HumanoidRootPart")
+                if TargetPart then
+                    local Dist = (Camera.CFrame.Position - TargetPart.Position).Magnitude
+                    
+                    if Dist < Config.MaxDist and Dist < MinDist then
+                        local DirToTarget = (TargetPart.Position - Camera.CFrame.Position).Unit
+                        local CamDir = Camera.CFrame.LookVector
+                        local Angle = GetAngleBetween(CamDir, DirToTarget)
+                        
+                        if Angle <= Config.FOV then
+                            MinDist = Dist
+                            Closest = { Part = TargetPart, Player = Player, Dist = Dist }
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return Closest
+end
+
+-- 메인 루프
+RunService.RenderStepped:Connect(function()
+    -- 활성화 토글
+    if UserInputService:IsKeyDown(Config.AimKey) then
+        IsActive = not IsActive
+    end
+    
+    if not IsActive then
+        -- 비활성화 시 ESP 정리
+        for i, obj in pairs(EspObjects) do
+            obj:Destroy()
+        end
+        table.clear(EspObjects)
+        return
+    end
+    
+    -- 타겟 찾기 및 적용
+    local Target = FindTarget()
+    
+    if Target then
+        UpdateESP()
+        
+        -- Aimbot (Smooth Lock)
+        local TargetCFrame = CFrame.new(Camera.CFrame.Position, Target.Part.Position)
+        Camera.CFrame = Camera.CFrame:Lerp(TargetCFrame, Config.Smoothness)
+        
+        -- Auto Fire (원하면 주석 해제)
+        -- UserInputService:MouseButton1Down()
+    else
+        UpdateESP()
+    end
+end)
+
+-- UI 표시
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "RageBotUI"
+Gui.ResetOnSpawn = false
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local Label = Instance.new("TextLabel")
+Label.Parent = Gui
+Label.Size = UDim2.new(0, 200, 0, 50)
+Label.Position = UDim2.new(0, 10, 0, 10)
+Label.BackgroundTransparency = 0.5
+Label.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Label.Text = "Rage Bot: OFF"
+Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+Label.Font = Enum.Font.SourceSansBold
+Label.TextSize = 20
+
+RunService.RenderStepped:Connect(function()
+    Label.Text = "Rage Bot: " .. (IsActive and "ON" or "OFF")
+    Label.TextColor3 = IsActive and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+end)
+
+print("God Mode Rage Bot Loaded! Press Q to Toggle.")
+```
